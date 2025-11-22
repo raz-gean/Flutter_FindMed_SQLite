@@ -6,6 +6,8 @@ import '../services/auth_service.dart';
 import '../services/database_helper.dart';
 import '../auth/login_page.dart';
 import 'home.dart';
+import '../widgets/findmed_logo.dart';
+import 'edit_branch_page.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -314,12 +316,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
         final user = authService.currentUser;
         return Scaffold(
           appBar: AppBar(
-            title: Text(
-              'FindMed Admin${user != null ? ' • ${user.displayName}' : ''}',
+            title: Row(
+              children: const [
+                FindMedLogo(size: 34),
+                SizedBox(width: 10),
+                Text(
+                  'FindMed',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
             actions: [
               IconButton(
-                tooltip: 'Home (Chains)',
+                tooltip: 'Home',
                 icon: const Icon(Icons.home_outlined),
                 onPressed: () {
                   final navigator = Navigator.of(context);
@@ -344,12 +357,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           body: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : IndexedStack(
-                  index: _selectedTabIndex,
+              : Column(
                   children: [
-                    _buildManagersMergedTab(),
-                    _buildCreateBranchTab(),
-                    _buildManageBranchesTab(),
+                    adminBodyHeader(user: user, currentTab: _selectedTabIndex),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: IndexedStack(
+                        index: _selectedTabIndex,
+                        children: [
+                          _buildManagersMergedTab(),
+                          _buildCreateBranchTab(),
+                          _buildManageBranchesTab(),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
           bottomNavigationBar: NavigationBar(
@@ -384,6 +405,73 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
         );
       },
+    );
+  }
+
+  String _tabTitle(int index) {
+    switch (index) {
+      case 0:
+        return 'Managers Overview';
+      case 1:
+        return 'Create Branch';
+      case 2:
+        return 'Manage Branches';
+      default:
+        return '';
+    }
+  }
+
+  Widget _adminMetaChip(String label, {Color? color}) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+    decoration: BoxDecoration(
+      color: (color ?? AppTheme.brandBlue).withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(
+        color: (color ?? AppTheme.brandBlue).withValues(alpha: 0.25),
+      ),
+    ),
+    child: Text(
+      label,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        color: color ?? AppTheme.brandBlueDark,
+      ),
+    ),
+  );
+
+  Widget adminBodyHeader({required AppUser? user, required int currentTab}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Admin Dashboard',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.brandBlueDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              if (user != null) _adminMetaChip('User: ${user.displayName}'),
+              _adminMetaChip(_tabTitle(currentTab)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Manage pharmacy managers, create branches, and maintain branch records.',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          ),
+        ],
+      ),
     );
   }
 
@@ -486,93 +574,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  void _showEditBranchDialog(Map<String, dynamic> branch) {
-    final nameCtrl = TextEditingController(
-      text: branch['branch_name'] as String? ?? '',
-    );
-    final addrCtrl = TextEditingController(
-      text: branch['branch_address'] as String? ?? '',
-    );
-    final phoneCtrl = TextEditingController(
-      text: branch['phone_number'] as String? ?? '',
-    );
-    int companyId =
-        branch['company_id'] as int? ?? _companies.first['id'] as int;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Branch'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<int>(
-                decoration: const InputDecoration(labelText: 'Company'),
-                initialValue: companyId,
-                items: _companies
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c['id'] as int,
-                        child: Text(c['name'] as String),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (val) => companyId = val ?? companyId,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Branch Name'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: addrCtrl,
-                decoration: const InputDecoration(labelText: 'Branch Address'),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneCtrl,
-                decoration: const InputDecoration(labelText: 'Phone Number'),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              // Capture navigator & messenger before async gap
-              final navigator = Navigator.of(ctx);
-              final messenger = ScaffoldMessenger.of(context);
-              final ok = await DatabaseHelper.instance.updateBranchAdmin(
-                branchId: branch['id'] as int,
-                companyId: companyId,
-                branchName: nameCtrl.text.trim(),
-                branchAddress: addrCtrl.text.trim(),
-                phoneNumber: phoneCtrl.text.trim(),
-              );
-              if (!mounted) return;
-              navigator.pop();
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    ok ? 'Branch updated' : 'Failed to update branch',
-                  ),
-                  backgroundColor: ok ? Colors.green : Colors.red,
-                ),
-              );
-              if (ok) _loadAdminData();
-            },
-            child: const Text('Save'),
-          ),
-        ],
+  // Navigate to dedicated edit branch page
+  void _navigateEditBranch(Map<String, dynamic> branch) async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EditBranchPage(branch: branch, companies: _companies),
       ),
     );
+    if (updated == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Branch updated'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _loadAdminData();
+    }
   }
 
   Future<void> _deleteBranch(int branchId) async {
@@ -689,7 +706,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       IconButton(
                         tooltip: 'Edit',
                         icon: const Icon(Icons.edit, color: AppTheme.brandBlue),
-                        onPressed: () => _showEditBranchDialog(b),
+                        onPressed: () => _navigateEditBranch(b),
                       ),
                       IconButton(
                         tooltip: 'Delete',

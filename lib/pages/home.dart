@@ -6,7 +6,6 @@ import 'medicines_page.dart';
 import 'profile_page.dart';
 import 'settings_page.dart';
 import '../auth/login_page.dart';
-import '../auth/signup_page.dart';
 import 'branches_page.dart';
 import '../models/pharmacy_branch.dart';
 import '../services/sqlite_service.dart';
@@ -15,6 +14,9 @@ import 'manager_dashboard.dart';
 import 'admin_dashboard.dart';
 import '../widgets/findmed_logo.dart';
 import '../widgets/company_logo.dart';
+import '../services/recently_viewed_service.dart';
+import '../models/medicine.dart';
+import 'medicine_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -33,16 +35,38 @@ class _HomePageState extends State<HomePage> {
   ];
 
   // Company logos are now provided by CompanyLogo widget mapping.
+  bool _hideTip = false;
+  static const List<String> _healthTips = [
+    'Stay hydrated: drink water regularly throughout the day.',
+    'Store medicines in a cool, dry place away from sunlight.',
+    'Always check expiry dates before taking any medication.',
+    'Consult a pharmacist when combining over-the-counter drugs.',
+    'Finish antibiotic courses unless instructed otherwise.',
+  ];
+
+  Future<Map<String, dynamic>> _loadHomeMetrics() async {
+    final branches = await SqliteService.fetchBranches();
+    final inventory = await SqliteService.fetchInventory();
+    final uniqueMedIds = <int>{};
+    for (final item in inventory) {
+      uniqueMedIds.add(item.medicine.id);
+    }
+    return {
+      'branches': branches,
+      'medicineCount': uniqueMedIds.length,
+      'inventoryItems': inventory.length,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Row(
-          children: [
-            const FindMedLogo(size: 34),
-            const SizedBox(width: 10),
-            const Text(
+          children: const [
+            FindMedLogo(size: 34),
+            SizedBox(width: 10),
+            Text(
               'FindMed',
               style: TextStyle(
                 fontSize: 20,
@@ -74,47 +98,123 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Your medicine & branch companion',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 12,
+                      ),
+                    ),
                   ],
                 ),
               ),
+              // Quick Access label
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Text(
+                  'Quick Access',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.login),
-                title: const Text('Login'),
+                leading: const Icon(Icons.storefront_outlined),
+                title: const Text('Browse Pharmacies'),
                 onTap: () {
                   Navigator.of(context).pop();
-                  Navigator.of(
-                    context,
-                  ).push(MaterialPageRoute(builder: (_) => const LoginPage()));
+                  setState(() => _index = 0);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.person_add_alt),
-                title: const Text('Sign Up'),
+                leading: const Icon(Icons.medication_outlined),
+                title: const Text('Medicines'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  setState(() => _index = 1);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.favorite_border),
+                title: const Text('Favorites'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  setState(() => _index = 2);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.note_outlined),
+                title: const Text('Notes'),
                 onTap: () {
                   Navigator.of(context).pop();
                   Navigator.of(
                     context,
-                  ).push(MaterialPageRoute(builder: (_) => const SignupPage()));
+                  ).push(MaterialPageRoute(builder: (_) => const NotesPage()));
+                },
+              ),
+              ValueListenableBuilder<List<Medicine>>(
+                valueListenable: RecentlyViewedService.instance.listenable,
+                builder: (context, viewed, _) {
+                  if (viewed.isEmpty) return const SizedBox.shrink();
+                  return ExpansionTile(
+                    leading: const Icon(Icons.history),
+                    title: const Text('Recently Viewed'),
+                    children: [
+                      ...viewed.map(
+                        (m) => ListTile(
+                          dense: true,
+                          title: Text(
+                            m.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          subtitle: Text(
+                            m.dosage.isEmpty ? 'No dosage' : m.dosage,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => MedicineDetailPage(medicine: m),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.clear, size: 18),
+                        title: const Text(
+                          'Clear list',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                        onTap: () {
+                          RecentlyViewedService.instance.clear();
+                        },
+                      ),
+                    ],
+                  );
                 },
               ),
               const Divider(),
-              // Panel button - only for managers and admins
               Consumer<AuthService>(
                 builder: (context, authService, _) {
                   final isManagerOrAdmin =
                       authService.isManager || authService.isAdmin;
-
                   if (!isManagerOrAdmin) {
-                    return const SizedBox.shrink(); // Hide for customers
+                    return const SizedBox.shrink();
                   }
-
-                  // For managers, we need to check if they have an assigned branch
                   if (authService.isManager) {
                     return FutureBuilder<bool>(
                       future: authService.hasAssignedBranch(),
                       builder: (context, snapshot) {
                         final hasAssignedBranch = snapshot.data ?? false;
-
                         if (!hasAssignedBranch) {
                           return ListTile(
                             leading: const Icon(
@@ -136,10 +236,8 @@ class _HomePageState extends State<HomePage> {
                               ),
                             ),
                             enabled: false,
-                            onTap: null,
                           );
                         }
-
                         return ListTile(
                           leading: const Icon(
                             Icons.dashboard,
@@ -164,8 +262,6 @@ class _HomePageState extends State<HomePage> {
                       },
                     );
                   }
-
-                  // Admin panel - always available
                   return ListTile(
                     leading: const Icon(
                       Icons.admin_panel_settings,
@@ -190,6 +286,22 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
               const Divider(),
+              ListTile(
+                leading: const Icon(Icons.lightbulb_outline),
+                title: Text(_hideTip ? 'Show Health Tip' : 'Hide Health Tip'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  setState(() => _hideTip = !_hideTip);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('About & Coming Soon'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showAboutDialog();
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
                 title: const Text(
@@ -247,8 +359,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildChainsWithHero() {
-    return FutureBuilder<List<PharmacyBranch>>(
-      future: SqliteService.fetchBranches(),
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _loadHomeMetrics(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -258,7 +370,7 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Failed to load branches'),
+                const Text('Failed to load data'),
                 const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: () => setState(() {}),
@@ -268,12 +380,16 @@ class _HomePageState extends State<HomePage> {
             ),
           );
         }
-        final data = snapshot.data ?? [];
+        final map = snapshot.data ?? {};
+        final branches = (map['branches'] as List<PharmacyBranch>?) ?? [];
         final grouped = <String, List<PharmacyBranch>>{};
-        for (final b in data) {
+        for (final b in branches) {
           grouped.putIfAbsent(b.company.name, () => []).add(b);
         }
         final chains = grouped.keys.toList()..sort();
+        final medicineCount = map['medicineCount'] as int? ?? 0;
+        final inventoryItems = map['inventoryItems'] as int? ?? 0;
+        final tip = _healthTips[DateTime.now().day % _healthTips.length];
         return ListView(
           children: [
             Center(
@@ -331,6 +447,236 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 16),
+            // Availability summary card
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Card(
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: Colors.grey.shade300, width: 1),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Availability Summary',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.brandBlueDark,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Tracking $medicineCount medicines across ${branches.length} branches.',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                color: Colors.grey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Inventory entries: $inventoryItems',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.analytics_outlined,
+                        color: AppTheme.brandBlue,
+                        size: 30,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Health tip card (dismissible)
+            if (!_hideTip)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Dismissible(
+                  key: const ValueKey('healthTip'),
+                  direction: DismissDirection.horizontal,
+                  onDismissed: (_) => setState(() => _hideTip = true),
+                  child: Card(
+                    color: Colors.green.shade50,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(color: Colors.green.shade200),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.health_and_safety,
+                            color: Colors.green,
+                            size: 28,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Health Tip',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  tip,
+                                  style: const TextStyle(
+                                    fontSize: 12.5,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Swipe to dismiss',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (!_hideTip)
+              const SizedBox(height: 16)
+            else
+              const SizedBox(height: 4),
+            // Recently Viewed Section
+            ValueListenableBuilder<List<Medicine>>(
+              valueListenable: RecentlyViewedService.instance.listenable,
+              builder: (context, viewed, _) {
+                if (viewed.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'Recently Viewed',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.brandBlue,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 120,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        scrollDirection: Axis.horizontal,
+                        itemCount: viewed.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, i) {
+                          final med = viewed[i];
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      MedicineDetailPage(medicine: med),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 160,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.grey.shade300,
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.all(10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    med.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.brandBlueDark,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    med.dosage.isEmpty
+                                        ? 'No dosage'
+                                        : med.dosage,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  Text(
+                                    '₱${med.price.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.brandBlueDark,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Stock: ${med.stock}',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                );
+              },
+            ),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(
@@ -533,17 +879,90 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 20),
+                      // Future-ready hooks placeholder
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppTheme.brandBlue.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.brandBlue.withValues(alpha: 0.15),
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.upcoming,
+                              color: AppTheme.brandBlue,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: const [
+                                  Text(
+                                    'Coming Soon',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppTheme.brandBlueDark,
+                                    ),
+                                  ),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    '• Order reminders & refill alerts\n• Nearest branch detection\n• Smart price comparisons\nStay tuned for updates!',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
+            // Footer
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Center(
+                child: Text(
+                  '@ 2025 FindMed • Health environment - By Group nila Raz',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
           ],
         );
       },
     );
   }
-}
+  // Legacy _buildLogo function removed in favor of reusable CompanyLogo widget.
 
-// Legacy _buildLogo function removed in favor of reusable CompanyLogo widget.
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('About FindMed'),
+        content: const Text(
+          'FindMed is a demo application showcasing branch availability, medicine browsing, and upcoming features like reminders and smart comparisons.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}

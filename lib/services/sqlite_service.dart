@@ -34,6 +34,10 @@ class SqliteService {
     return DatabaseHelper.instance.deleteNote(id);
   }
 
+  static Future<Note> updateNote(Note note) {
+    return DatabaseHelper.instance.updateNote(note);
+  }
+
   static Future<bool> toggleFavorite(int userId, int medicineId) {
     return DatabaseHelper.instance.toggleFavorite(userId, medicineId);
   }

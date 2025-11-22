@@ -11,8 +11,8 @@ class CompanyLogo extends StatelessWidget {
     super.key,
     required this.companyName,
     this.size = 44,
-    this.borderRadius = 999,
-    this.circular = true,
+    this.borderRadius = 0,
+    this.circular = false, // default to rounded rectangle per new design
   });
 
   static const Map<String, String> _logoAssets = {
@@ -37,7 +37,11 @@ class CompanyLogo extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: circular ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: circular ? null : BorderRadius.circular(borderRadius),
+        borderRadius: circular
+            ? null
+            : BorderRadius.circular(
+                borderRadius > 0 ? borderRadius : size * 0.15,
+              ),
         border: Border.all(color: Colors.grey.shade300, width: 1),
         color: Colors.white,
         boxShadow: [
@@ -49,7 +53,7 @@ class CompanyLogo extends StatelessWidget {
         ],
       ),
       clipBehavior: Clip.antiAlias,
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(2),
       child: Image.asset(path, fit: BoxFit.contain),
     );
   }

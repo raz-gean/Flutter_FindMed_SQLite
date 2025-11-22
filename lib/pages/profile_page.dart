@@ -5,6 +5,7 @@ import '../services/sqlite_service.dart';
 import '../services/auth_service.dart';
 import '../models/user.dart';
 import '../models/medicine.dart';
+import '../widgets/findmed_logo.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -250,7 +251,22 @@ class _FavoritesPageState extends State<_FavoritesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Favorites')),
+      appBar: AppBar(
+        title: const Row(
+          children: [
+            FindMedLogo(size: 34),
+            SizedBox(width: 10),
+            Text(
+              'FindMed',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _favorites.isEmpty

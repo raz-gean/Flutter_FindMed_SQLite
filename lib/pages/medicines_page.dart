@@ -7,6 +7,7 @@ import '../models/pharmacy_branch.dart';
 import '../services/sqlite_service.dart';
 import '../services/auth_service.dart';
 import 'medicine_detail_page.dart';
+import '../widgets/findmed_logo.dart';
 
 class MedicinesPage extends StatefulWidget {
   const MedicinesPage({super.key});
@@ -76,6 +77,32 @@ class _MedicinesPageState extends State<MedicinesPage> {
     final branches = _branches;
     return Column(
       children: [
+        _MedicinesBodyHeader(
+          filteredCount: medicines.length,
+          totalCount: _inventory.map((i) => i.medicine.id).toSet().length,
+          branchName: _branchFilter == null
+              ? null
+              : branches
+                    .firstWhere(
+                      (b) => b.id == _branchFilter,
+                      orElse: () => PharmacyBranch(
+                        id: -1,
+                        branchName: 'Unknown',
+                        branchAddress: '',
+                        company: branches.isNotEmpty
+                            ? branches.first.company
+                            : PharmacyBranch(
+                                id: -1,
+                                branchName: '',
+                                branchAddress: '',
+                                company: branches.isNotEmpty
+                                    ? branches.first.company
+                                    : branches.first.company,
+                              ).company,
+                      ),
+                    )
+                    .branchName,
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: TextField(
@@ -183,16 +210,100 @@ class _MedicinesPageState extends State<MedicinesPage> {
   }
 
   List<Medicine> _filteredMeds() {
-    final items = _inventory.map((i) => i.medicine).toList();
     final q = _query.toLowerCase();
-    return items.where((m) {
+    final Map<int, Medicine> unique = {};
+    for (final item in _inventory) {
+      final m = item.medicine;
       final matchesQuery =
           q.isEmpty ||
           m.name.toLowerCase().contains(q) ||
           m.dosage.toLowerCase().contains(q);
-      final matchesBranch = _branchFilter == null || m.storeId == _branchFilter;
-      return matchesQuery && matchesBranch;
-    }).toList();
+      // Use inventory item's branch id for filtering to avoid relying on duplicated medicine.storeId
+      final matchesBranch =
+          _branchFilter == null || item.branch.id == _branchFilter;
+      if (matchesQuery && matchesBranch) {
+        unique[m.id] = m; // ensures uniqueness by id
+      }
+    }
+    return unique.values.toList();
+  }
+}
+
+class _MedicinesBodyHeader extends StatelessWidget {
+  final int filteredCount;
+  final int totalCount;
+  final String? branchName;
+  const _MedicinesBodyHeader({
+    required this.filteredCount,
+    required this.totalCount,
+    required this.branchName,
+  });
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+      ),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FindMedLogo(size: 32),
+              SizedBox(width: 8),
+              Text(
+                'FindMed',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+          _chip(
+            icon: Icons.medication,
+            label: 'Showing $filteredCount of $totalCount',
+          ),
+          if (branchName != null &&
+              branchName!.isNotEmpty &&
+              branchName != 'Unknown')
+            _chip(icon: Icons.store, label: branchName!),
+        ],
+      ),
+    );
+  }
+
+  static Widget _chip({required IconData icon, required String label}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppTheme.brandBlueDark),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.brandBlueDark,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

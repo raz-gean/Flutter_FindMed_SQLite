@@ -8,6 +8,7 @@ import '../models/medicine.dart';
 import '../models/pharmacy_branch.dart';
 import '../auth/login_page.dart';
 import '../widgets/findmed_logo.dart';
+import 'medicine_form_page.dart';
 
 class ManagerDashboard extends StatefulWidget {
   const ManagerDashboard({super.key});
@@ -78,103 +79,50 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   }
 
   void _showAddMedicineDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => _MedicineFormDialog(
-        title: 'Add Medicine',
-        onSave: (name, genericName, description, stock, price) async {
-          try {
-            final authService = Provider.of<AuthService>(
-              context,
-              listen: false,
-            );
-            final user = authService.currentUser!;
-
-            if (_userBranchId == null) {
-              throw Exception('No branch assigned');
-            }
-
-            await DatabaseHelper.instance.addMedicine(
-              name: name,
-              genericName: genericName,
-              description: description,
-              managerId: user.id,
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+    if (user == null || _userBranchId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Manager branch context missing')),
+      );
+      return;
+    }
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => MedicineFormPage(
+              title: 'Add Medicine',
+              manager: user,
               branchId: _userBranchId!,
-              initialStock: stock,
-              initialPrice: price,
-            );
-            await _loadMedicines();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Medicine added successfully')),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Error: $e')));
-            }
-          }
-        },
-      ),
-    );
+              onSuccess: _loadMedicines,
+            ),
+          ),
+        )
+        .then((_) => _loadMedicines());
   }
 
   void _showEditMedicineDialog(Medicine medicine) {
-    showDialog(
-      context: context,
-      builder: (_) => _MedicineFormDialog(
-        title: 'Edit Medicine',
-        initialName: medicine.name,
-        initialGenericName: medicine.genericName,
-        initialDescription: medicine.description,
-        initialStock: medicine.stock,
-        initialPrice: medicine.price,
-        onSave: (name, genericName, description, stock, price) async {
-          try {
-            final authService = Provider.of<AuthService>(
-              context,
-              listen: false,
-            );
-            final user = authService.currentUser!;
-
-            if (_userBranchId == null) {
-              throw Exception('No branch assigned');
-            }
-
-            await DatabaseHelper.instance.updateMedicine(
-              medicineId: medicine.id,
-              name: name,
-              genericName: genericName,
-              description: description,
-              managerId: user.id,
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final user = authService.currentUser;
+    if (user == null || _userBranchId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Manager branch context missing')),
+      );
+      return;
+    }
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => MedicineFormPage(
+              title: 'Edit Medicine',
+              manager: user,
               branchId: _userBranchId!,
-            );
-            // Update inventory stock / price
-            await DatabaseHelper.instance.updateMedicineInventory(
-              medicineId: medicine.id,
-              branchId: _userBranchId!,
-              managerId: user.id,
-              newStock: stock,
-              newPrice: price,
-            );
-            await _loadMedicines();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Medicine updated successfully')),
-              );
-            }
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(SnackBar(content: Text('Error: $e')));
-            }
-          }
-        },
-      ),
-    );
+              existing: medicine,
+              onSuccess: _loadMedicines,
+            ),
+          ),
+        )
+        .then((_) => _loadMedicines());
   }
 
   void _showDeleteConfirmation(Medicine medicine) {
@@ -238,36 +186,16 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
         final user = authService.currentUser;
         return Scaffold(
           appBar: AppBar(
-            title: Row(
+            title: const Row(
               children: [
-                const FindMedLogo(size: 34),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Manager • ${user?.displayName ?? 'Account'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      if (_currentBranch != null)
-                        Text(
-                          _currentBranch!.branchName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.grey.shade200,
-                          ),
-                        ),
-                    ],
+                FindMedLogo(size: 34),
+                SizedBox(width: 10),
+                Text(
+                  'FindMed',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
@@ -287,12 +215,23 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
               ),
             ],
           ),
-          body: IndexedStack(
-            index: _selectedTabIndex,
+          body: Column(
             children: [
-              _buildDashboard(user),
-              _buildMedicinesTab(),
-              _buildProfileTab(user),
+              _ManagerBodyHeader(
+                user: user,
+                branch: _currentBranch,
+                totalMedicines: _medicines.length,
+              ),
+              Expanded(
+                child: IndexedStack(
+                  index: _selectedTabIndex,
+                  children: [
+                    _buildDashboard(user),
+                    _buildMedicinesTab(),
+                    _buildProfileTab(user),
+                  ],
+                ),
+              ),
             ],
           ),
           bottomNavigationBar: NavigationBar(
@@ -768,178 +707,60 @@ class _ManagerDashboardState extends State<ManagerDashboard> {
   }
 }
 
-class _MedicineFormDialog extends StatefulWidget {
-  final String title;
-  final String? initialName;
-  final String? initialGenericName;
-  final String? initialDescription;
-  final int? initialStock;
-  final double? initialPrice;
-  final Function(String, String, String, int, double) onSave;
-
-  const _MedicineFormDialog({
-    required this.title,
-    required this.onSave,
-    this.initialName,
-    this.initialGenericName,
-    this.initialDescription,
-    this.initialStock,
-    this.initialPrice,
+class _ManagerBodyHeader extends StatelessWidget {
+  final AppUser? user;
+  final PharmacyBranch? branch;
+  final int totalMedicines;
+  const _ManagerBodyHeader({
+    required this.user,
+    required this.branch,
+    required this.totalMedicines,
   });
-
-  @override
-  State<_MedicineFormDialog> createState() => _MedicineFormDialogState();
-}
-
-class _MedicineFormDialogState extends State<_MedicineFormDialog> {
-  late TextEditingController _nameController;
-  late TextEditingController _genericNameController;
-  late TextEditingController _descriptionController;
-  late TextEditingController _stockController;
-  late TextEditingController _priceController;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: widget.initialName ?? '');
-    _genericNameController = TextEditingController(
-      text: widget.initialGenericName ?? '',
-    );
-    _descriptionController = TextEditingController(
-      text: widget.initialDescription ?? '',
-    );
-    _stockController = TextEditingController(
-      text: widget.initialStock?.toString() ?? '0',
-    );
-    _priceController = TextEditingController(
-      text: widget.initialPrice?.toStringAsFixed(2) ?? '0.00',
-    );
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _genericNameController.dispose();
-    _descriptionController.dispose();
-    _stockController.dispose();
-    _priceController.dispose();
-    super.dispose();
-  }
-
-  void _handleSave() {
-    if (_nameController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Medicine name is required')),
-      );
-      return;
-    }
-
-    // Parse & validate stock
-    final stockRaw = _stockController.text.trim();
-    final priceRaw = _priceController.text.trim();
-    int stock;
-    double price;
-    try {
-      stock = int.parse(stockRaw);
-      if (stock < 0) stock = 0; // Prevent negative
-    } catch (_) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Invalid stock value')));
-      return;
-    }
-    try {
-      price = double.parse(priceRaw);
-      if (price < 0) price = 0.0; // Prevent negative
-    } catch (_) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Invalid price value')));
-      return;
-    }
-
-    try {
-      widget.onSave(
-        _nameController.text.trim(),
-        _genericNameController.text.trim(),
-        _descriptionController.text.trim(),
-        stock,
-        price,
-      );
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.title),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Medicine Name *',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _genericNameController,
-              decoration: const InputDecoration(
-                labelText: 'Generic Name',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _descriptionController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _stockController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Stock (integer)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _priceController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Price (₱)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _handleSave,
-          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.brandBlue),
-          child: const Text('Save'),
-        ),
-      ],
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _chip(Icons.manage_accounts, user?.displayName ?? 'Manager'),
+          if (branch != null) _chip(Icons.store, branch!.branchName),
+          if (branch != null) _chip(Icons.business, branch!.company.name),
+          _chip(Icons.medical_services, 'Medicines: $totalMedicines'),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppTheme.brandBlueDark),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppTheme.brandBlueDark,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

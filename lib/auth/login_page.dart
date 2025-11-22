@@ -241,45 +241,7 @@ class _LoginPageState extends State<LoginPage> {
               ],
             ),
             const SizedBox(height: 24),
-            // Demo credentials hint
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Demo Accounts:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.brandBlueDark,
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Customer: customer@gmail.com',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  Text(
-                    'Manager: manager@gmail.com',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  Text(
-                    'Admin: admin@gmail.com',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  Text(
-                    'Password: demo123',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
+            // (Demo account hint removed as per request)
           ],
         ),
       ),

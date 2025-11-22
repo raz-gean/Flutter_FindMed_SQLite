@@ -104,6 +104,17 @@ class DatabaseHelper {
       await _db!.rawUpdate(
         "UPDATE users SET email = REPLACE(email,'@findmed.local','@gmail.com') WHERE email LIKE '%@findmed.local'",
       );
+      // One-time display name normalization: remove 'Demo ' prefix
+      await _db!.rawUpdate(
+        "UPDATE users SET display_name = CASE "
+        "WHEN display_name='Demo Customer' THEN 'Customer' "
+        "WHEN display_name='Demo Manager' THEN 'Manager' "
+        "WHEN display_name='Demo Admin' THEN 'Admin' "
+        "WHEN display_name='Demo User' THEN 'Customer' "
+        "ELSE display_name END "
+        "WHERE display_name LIKE 'Demo %' OR display_name='Demo User'",
+      );
+      debugPrint('DEBUG: Normalized demo display names');
     } catch (_) {}
     await _seedIfEmpty();
   }
@@ -194,7 +205,7 @@ class DatabaseHelper {
 
     await db.insert('users', {
       'email': 'customer@gmail.com',
-      'display_name': 'Demo Customer',
+      'display_name': 'Customer',
       'hashed_password': demoHash,
       'role': UserRole.customer.value,
       'is_active': 1,
@@ -203,7 +214,7 @@ class DatabaseHelper {
 
     final managerId = await db.insert('users', {
       'email': 'manager@gmail.com',
-      'display_name': 'Demo Manager',
+      'display_name': 'Manager',
       'hashed_password': demoHash,
       'role': UserRole.manager.value,
       'is_active': 1,
@@ -412,6 +423,21 @@ class DatabaseHelper {
   Future<int> deleteNote(String id) async {
     final db = await _database;
     return await db.delete('notes', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<Note> updateNote(Note note) async {
+    final db = await _database;
+    await db.update(
+      'notes',
+      {
+        'title': note.title,
+        'content': note.content,
+        // keep original created_at; no updated_at column yet
+      },
+      where: 'id = ?',
+      whereArgs: [note.id],
+    );
+    return note;
   }
 
   Future<bool> isFavorite(int userId, int medicineId) async {

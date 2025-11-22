@@ -4,6 +4,8 @@ import '../models/note.dart';
 import '../services/sqlite_service.dart';
 import '../services/auth_service.dart';
 import 'dart:async';
+import '../widgets/findmed_logo.dart';
+import 'note_form_page.dart';
 
 class NotesPage extends StatefulWidget {
   const NotesPage({super.key});
@@ -44,25 +46,50 @@ class _NotesPageState extends State<NotesPage> {
     });
   }
 
-  void _addNote() {
-    if (_userId == null) return; // still loading
-    showDialog(
-      context: context,
-      builder: (context) => _AddNoteDialog(
-        onAdd: (title, content) async {
-          final note = Note(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            userId: _userId!,
-            title: title,
-            content: content,
-            createdAt: DateTime.now(),
-          );
-          await SqliteService.addNote(note);
-          if (!mounted) return;
-          setState(() => notes.insert(0, note));
-        },
-      ),
-    );
+  void _navigateCreateNote() {
+    if (_userId == null) return;
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => NoteFormPage(
+              title: 'Create Note',
+              userId: _userId!,
+              onSaved: (created) async {
+                final fetched = await SqliteService.fetchNotes(_userId!);
+                if (!mounted) return;
+                setState(() => notes = fetched);
+              },
+            ),
+          ),
+        )
+        .then((_) => _refreshNotes());
+  }
+
+  void _navigateEditNote(Note note) {
+    if (_userId == null) return;
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (_) => NoteFormPage(
+              title: 'Edit Note',
+              userId: _userId!,
+              existing: note,
+              onSaved: (updated) async {
+                final fetched = await SqliteService.fetchNotes(_userId!);
+                if (!mounted) return;
+                setState(() => notes = fetched);
+              },
+            ),
+          ),
+        )
+        .then((_) => _refreshNotes());
+  }
+
+  Future<void> _refreshNotes() async {
+    if (_userId == null) return;
+    final fetched = await SqliteService.fetchNotes(_userId!);
+    if (!mounted) return;
+    setState(() => notes = fetched);
   }
 
   Future<void> _deleteNote(int index) async {
@@ -76,8 +103,36 @@ class _NotesPageState extends State<NotesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Shopping Notes'),
+        elevation: 0,
         backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              // Fallback: navigate to root/home if no back stack
+              Navigator.of(context).pushReplacementNamed('/');
+            }
+          },
+          tooltip: 'Back',
+        ),
+        title: const Row(
+          children: [
+            FindMedLogo(size: 34),
+            SizedBox(width: 10),
+            Text(
+              'FindMed',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+                color: Colors.black,
+              ),
+            ),
+          ],
+        ),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -99,35 +154,49 @@ class _NotesPageState extends State<NotesPage> {
                 ],
               ),
             )
-          : notes.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.note_outlined,
-                    size: 64,
-                    color: Colors.grey.shade400,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No notes yet',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: _addNote,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create Note'),
-                  ),
-                ],
-              ),
-            )
           : ListView.builder(
               padding: const EdgeInsets.all(12),
-              itemCount: notes.length,
+              itemCount: notes.isEmpty ? 1 : notes.length + 1,
               itemBuilder: (context, index) {
-                final note = notes[index];
+                if (index == 0) {
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    color: Colors.grey.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'My Shopping Notes',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            notes.isEmpty
+                                ? 'Create notes to track items you plan to buy.'
+                                : 'You have ${notes.length} saved note${notes.length == 1 ? '' : 's'}.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          if (notes.isEmpty)
+                            ElevatedButton.icon(
+                              onPressed: _navigateCreateNote,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Create First Note'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                final note = notes[index - 1];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(
@@ -135,56 +204,59 @@ class _NotesPageState extends State<NotesPage> {
                     side: BorderSide(color: Colors.grey.shade300),
                   ),
                   elevation: 0,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                note.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                  color: Colors.black,
+                  child: InkWell(
+                    onTap: () => _navigateEditNote(note),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  note.title,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: Colors.black,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete,
-                                color: Colors.grey,
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  color: Colors.grey,
+                                ),
+                                onPressed: () => _deleteNote(index - 1),
+                                constraints: const BoxConstraints(),
+                                padding: EdgeInsets.zero,
                               ),
-                              onPressed: () => _deleteNote(index),
-                              constraints: const BoxConstraints(),
-                              padding: EdgeInsets.zero,
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            note.content,
+                            style: TextStyle(
+                              color: Colors.grey.shade700,
+                              fontSize: 14,
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          note.content,
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 14,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          '${note.createdAt.day}/${note.createdAt.month}/${note.createdAt.year}',
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 12,
+                          const SizedBox(height: 12),
+                          Text(
+                            '${note.createdAt.day}/${note.createdAt.month}/${note.createdAt.year}',
+                            style: TextStyle(
+                              color: Colors.grey.shade500,
+                              fontSize: 12,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -193,7 +265,7 @@ class _NotesPageState extends State<NotesPage> {
       floatingActionButton: _authMissing
           ? null
           : FloatingActionButton(
-              onPressed: _addNote,
+              onPressed: _navigateCreateNote,
               backgroundColor: Colors.black,
               foregroundColor: Colors.white,
               shape: const CircleBorder(),
@@ -203,101 +275,4 @@ class _NotesPageState extends State<NotesPage> {
   }
 }
 
-class _AddNoteDialog extends StatefulWidget {
-  final FutureOr<void> Function(String title, String content) onAdd;
-  const _AddNoteDialog({required this.onAdd});
-  @override
-  State<_AddNoteDialog> createState() => _AddNoteDialogState();
-}
-
-class _AddNoteDialogState extends State<_AddNoteDialog> {
-  late TextEditingController _titleController;
-  late TextEditingController _contentController;
-  @override
-  void initState() {
-    super.initState();
-    _titleController = TextEditingController();
-    _contentController = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _contentController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Create Note',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _titleController,
-              decoration: InputDecoration(
-                hintText: 'Note title',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade100,
-              ),
-              maxLines: 1,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _contentController,
-              decoration: InputDecoration(
-                hintText: 'What do you need to buy?',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade100,
-              ),
-              maxLines: 4,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: () {
-                    if (_titleController.text.isNotEmpty &&
-                        _contentController.text.isNotEmpty) {
-                      widget.onAdd(
-                        _titleController.text,
-                        _contentController.text,
-                      );
-                      Navigator.pop(context);
-                    }
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// Dialog removed; replaced with dedicated form page

@@ -6,6 +6,8 @@ import '../services/sqlite_service.dart';
 import '../theme/app_theme.dart';
 import 'branch_detail_page.dart';
 import '../widgets/company_logo.dart';
+import '../services/recently_viewed_service.dart';
+import '../widgets/findmed_logo.dart';
 
 class MedicineDetailPage extends StatefulWidget {
   final Medicine medicine;
@@ -25,6 +27,8 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
   @override
   void initState() {
     super.initState();
+    // Record this medicine as recently viewed
+    RecentlyViewedService.instance.add(widget.medicine);
     _load();
   }
 
@@ -36,7 +40,7 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
     });
     try {
       final inv = await SqliteService.fetchInventory();
-      final uid = await SqliteService.ensureUser('demo@gmail.com', 'Demo User');
+      final uid = await SqliteService.ensureUser('demo@gmail.com', 'Customer');
       final fav = await SqliteService.isFavorite(uid, widget.medicine.id);
       setState(() {
         _inventory = inv
@@ -75,7 +79,20 @@ class _MedicineDetailPageState extends State<MedicineDetailPage> {
     final branches = _inventory.map((i) => i.branch).toList();
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.medicine.name),
+        title: const Row(
+          children: [
+            FindMedLogo(size: 34),
+            SizedBox(width: 10),
+            Text(
+              'FindMed',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
         actions: [
           if (_favLoading)
             const Padding(
