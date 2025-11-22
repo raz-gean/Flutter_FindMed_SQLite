@@ -1,0 +1,49 @@
+name: findmed_demo
+description: "FindMed UI demo backed by local SQLite instead of remote API."
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.3.0
+  path_provider: ^2.1.0
+  path: ^1.9.0
+  crypto: ^3.0.0
+  provider: ^6.0.0
+  shared_preferences: ^2.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/imgs/findmed_logo.png
+    - assets/imgs/medicinebackground.jpg
+    - assets/imgs/TGP_Logo.jpg
+    - assets/imgs/Mercury_Logo.png
+    - assets/imgs/Rose_Logo.png
+    - assets/imgs/Generika_Logo.png
+
+# 🔹 Flutter Launcher Icons (top-level, NOT under flutter:)
+flutter_icons:
+  android: true
+  ios: true
+  image_path: assets/imgs/findmed_logo.png
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/imgs/findmed_logo.png
+
+# 🔹 Flutter Native Splash (top-level, NOT under flutter:)
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/imgs/findmed_logo.png
+  android_12:
+    color: "#FFFFFF"
+    image: assets/imgs/findmed_logo.png
