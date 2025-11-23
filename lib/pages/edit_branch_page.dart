@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../stores/branch_store.dart';
 import '../services/database_helper.dart';
 import '../theme/app_theme.dart';
 import '../widgets/findmed_logo.dart';
@@ -70,6 +72,10 @@ class _EditBranchPageState extends State<EditBranchPage> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (ok) {
+      // Refresh global branch metrics before popping.
+      if (mounted) {
+        Provider.of<BranchStore>(context, listen: false).markDirtyAndRefresh();
+      }
       Navigator.of(context).pop(true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

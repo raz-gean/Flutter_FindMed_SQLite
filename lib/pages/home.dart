@@ -8,7 +8,9 @@ import 'settings_page.dart';
 import '../auth/login_page.dart';
 import 'branches_page.dart';
 import '../models/pharmacy_branch.dart';
-import '../services/sqlite_service.dart';
+// SqliteService no longer directly used here for metrics.
+// import '../services/sqlite_service.dart';
+import '../stores/branch_store.dart';
 import 'notes_page.dart';
 import 'manager_dashboard.dart';
 import 'admin_dashboard.dart';
@@ -44,19 +46,7 @@ class _HomePageState extends State<HomePage> {
     'Finish antibiotic courses unless instructed otherwise.',
   ];
 
-  Future<Map<String, dynamic>> _loadHomeMetrics() async {
-    final branches = await SqliteService.fetchBranches();
-    final inventory = await SqliteService.fetchInventory();
-    final uniqueMedIds = <int>{};
-    for (final item in inventory) {
-      uniqueMedIds.add(item.medicine.id);
-    }
-    return {
-      'branches': branches,
-      'medicineCount': uniqueMedIds.length,
-      'inventoryItems': inventory.length,
-    };
-  }
+  // Legacy metrics loader removed; BranchStore now supplies reactive data.
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +316,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      body: _index == 0 ? _buildChainsWithHero() : _pages[_index],
+      body: _index == 0 ? _buildChainsWithHeroStore() : _pages[_index],
       bottomNavigationBar: NavigationBar(
         backgroundColor: Colors.white,
         indicatorColor: AppTheme.brandBlue.withValues(alpha: 0.15),
@@ -358,37 +348,23 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildChainsWithHero() {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _loadHomeMetrics(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+  Widget _buildChainsWithHeroStore() {
+    return Consumer<BranchStore>(
+      builder: (context, store, _) {
+        if (store.isLoading && !store.initialized) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Failed to load data'),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => setState(() {}),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
+        final branches = store.branches;
+        if (store.isLoading && branches.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
         }
-        final map = snapshot.data ?? {};
-        final branches = (map['branches'] as List<PharmacyBranch>?) ?? [];
         final grouped = <String, List<PharmacyBranch>>{};
         for (final b in branches) {
           grouped.putIfAbsent(b.company.name, () => []).add(b);
         }
         final chains = grouped.keys.toList()..sort();
-        final medicineCount = map['medicineCount'] as int? ?? 0;
-        final inventoryItems = map['inventoryItems'] as int? ?? 0;
+        final medicineCount = store.uniqueMedicineCount;
+        final inventoryItems = store.inventoryItems;
         final tip = _healthTips[DateTime.now().day % _healthTips.length];
         return ListView(
           children: [

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../stores/branch_store.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../models/user.dart';
@@ -7,7 +8,9 @@ import '../services/database_helper.dart';
 import '../auth/login_page.dart';
 import 'home.dart';
 import '../widgets/findmed_logo.dart';
+import '../widgets/company_logo.dart';
 import 'edit_branch_page.dart';
+import 'assign_manager_page.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -121,147 +124,48 @@ class _AdminDashboardState extends State<AdminDashboard> {
     });
   }
 
-  void _showAssignManagerDialog(AppUser manager) {
-    String? selectedBranchId;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('Assign Manager: ${manager.displayName}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Select a branch:'),
-              const SizedBox(height: 12),
-              DropdownButton<String>(
-                isExpanded: true,
-                hint: const Text('Choose branch...'),
-                value: selectedBranchId,
-                items: _branches
-                    .map(
-                      (branch) => DropdownMenuItem(
-                        value: branch['id'].toString(),
-                        child: Text(branch['branch_name'] as String),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setDialogState(() => selectedBranchId = value),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: selectedBranchId == null
-                  ? null
-                  : () async {
-                      final navigator = Navigator.of(context);
-                      final messenger = ScaffoldMessenger.of(context);
-                      final success = await DatabaseHelper.instance
-                          .assignManagerToBranchAdmin(
-                            manager.id,
-                            int.parse(selectedBranchId!),
-                          );
-                      if (!mounted) return;
-                      navigator.pop();
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            success
-                                ? 'Manager assigned successfully'
-                                : 'Failed to assign manager',
-                          ),
-                          backgroundColor: success ? Colors.green : Colors.red,
-                        ),
-                      );
-                      if (success) _loadAdminData();
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.brandBlue,
-              ),
-              child: const Text('Assign'),
-            ),
-          ],
+  void _navigateAssignManager(AppUser manager) async {
+    final success = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AssignManagerPage(
+          manager: manager,
+          branches: _branches,
+          companies: _companies,
+          isReassign: false,
         ),
       ),
     );
+    if (success == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Manager assigned successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _loadAdminData();
+    }
   }
 
-  void _showReassignManagerDialog(Map<String, dynamic> managerData) {
-    final managerId = managerData['id'] as int;
-    final managerName = managerData['display_name'] as String;
-    String? selectedBranchId = managerData['branch_id']?.toString();
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('Reassign Manager: $managerName'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Select new branch:'),
-              const SizedBox(height: 12),
-              DropdownButton<String>(
-                isExpanded: true,
-                value: selectedBranchId,
-                items: _branches
-                    .map(
-                      (branch) => DropdownMenuItem(
-                        value: branch['id'].toString(),
-                        child: Text(branch['branch_name'] as String),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) =>
-                    setDialogState(() => selectedBranchId = value),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: selectedBranchId == null
-                  ? null
-                  : () async {
-                      final navigator = Navigator.of(context);
-                      final messenger = ScaffoldMessenger.of(context);
-                      final success = await DatabaseHelper.instance
-                          .reassignManagerToBranch(
-                            managerId,
-                            int.parse(selectedBranchId!),
-                          );
-                      if (!mounted) return;
-                      navigator.pop();
-                      messenger.showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            success
-                                ? 'Manager reassigned successfully'
-                                : 'Failed to reassign manager',
-                          ),
-                          backgroundColor: success ? Colors.green : Colors.red,
-                        ),
-                      );
-                      if (success) _loadAdminData();
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.brandBlue,
-              ),
-              child: const Text('Reassign'),
-            ),
-          ],
+  void _navigateReassignManager(Map<String, dynamic> managerData) async {
+    final success = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AssignManagerPage(
+          managerData: managerData,
+          branches: _branches,
+          companies: _companies,
+          isReassign: true,
         ),
       ),
     );
+    if (success == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Manager reassigned successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _loadAdminData();
+    }
   }
 
   Future<void> _createBranch() async {
@@ -298,6 +202,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
         _phoneNumberController.clear();
         setState(() => _selectedCompanyId = null);
         _loadAdminData();
+        // Notify BranchStore to refresh global branch metrics.
+        if (mounted) {
+          final store = Provider.of<BranchStore>(context, listen: false);
+          store.markDirtyAndRefresh();
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -627,10 +536,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildManageBranchesTab() {
-    // Map company id to name for quick lookup
     final companyNameById = {
       for (final c in _companies) c['id'] as int: c['name'] as String,
     };
+    // Group branches by company id
+    final grouped = <int, List<Map<String, dynamic>>>{};
+    for (final b in _branches) {
+      final cid = b['company_id'] as int?;
+      if (cid == null) continue;
+      grouped.putIfAbsent(cid, () => []).add(b);
+    }
+    final sortedCompanyIds = grouped.keys.toList()
+      ..sort(
+        (a, b) =>
+            (companyNameById[a] ?? '').compareTo(companyNameById[b] ?? ''),
+      );
     return RefreshIndicator(
       onRefresh: _loadAdminData,
       child: ListView(
@@ -672,47 +592,140 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             )
           else
-            ..._branches.map((b) {
-              final companyName = companyNameById[b['company_id']] ?? 'Company';
+            ...sortedCompanyIds.map((cid) {
+              final companyName = companyNameById[cid] ?? 'Company';
+              final companyBranches = grouped[cid]!;
               return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: const Icon(Icons.store, color: AppTheme.brandBlue),
-                  title: Text(b['branch_name'] as String? ?? ''),
-                  subtitle: Column(
+                margin: const EdgeInsets.only(bottom: 16),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: Colors.grey.shade300, width: 1),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(companyName, style: const TextStyle(fontSize: 12)),
-                      Text(
-                        (b['branch_address'] as String? ?? '').trim(),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                      if ((b['phone_number'] as String? ?? '').isNotEmpty)
-                        Text(
-                          b['phone_number'] as String,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
+                      Row(
+                        children: [
+                          CompanyLogo(companyName: companyName, size: 40),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              companyName,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.brandBlueDark,
+                              ),
+                            ),
                           ),
-                        ),
-                    ],
-                  ),
-                  trailing: Wrap(
-                    spacing: 4,
-                    children: [
-                      IconButton(
-                        tooltip: 'Edit',
-                        icon: const Icon(Icons.edit, color: AppTheme.brandBlue),
-                        onPressed: () => _navigateEditBranch(b),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppTheme.brandBlue.withValues(alpha: 0.07),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: AppTheme.brandBlue.withValues(
+                                  alpha: 0.25,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              '${companyBranches.length} branches',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.brandBlueDark,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        tooltip: 'Delete',
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteBranch(b['id'] as int),
-                      ),
+                      const SizedBox(height: 12),
+                      ...companyBranches.map((b) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey.shade300,
+                              width: 1,
+                            ),
+                            color: Colors.white,
+                          ),
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            leading: const Icon(
+                              Icons.store,
+                              color: AppTheme.brandBlue,
+                            ),
+                            title: Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                Text(
+                                  b['branch_name'] as String? ?? '',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  (b['branch_address'] as String? ?? '').trim(),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                                if ((b['phone_number'] as String? ?? '')
+                                    .isNotEmpty)
+                                  Text(
+                                    b['phone_number'] as String,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            trailing: Wrap(
+                              spacing: 4,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Edit',
+                                  icon: const Icon(
+                                    Icons.edit,
+                                    color: AppTheme.brandBlue,
+                                  ),
+                                  onPressed: () => _navigateEditBranch(b),
+                                ),
+                                IconButton(
+                                  tooltip: 'Delete',
+                                  icon: const Icon(
+                                    Icons.delete,
+                                    color: Colors.red,
+                                  ),
+                                  onPressed: () =>
+                                      _deleteBranch(b['id'] as int),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
                     ],
                   ),
                 ),
@@ -806,7 +819,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         title: Text(m.displayName),
                         subtitle: Text(m.email),
                         trailing: ElevatedButton(
-                          onPressed: () => _showAssignManagerDialog(m),
+                          onPressed: () => _navigateAssignManager(m),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppTheme.brandBlue,
                           ),
@@ -857,7 +870,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.edit, color: AppTheme.brandBlue),
-                    onPressed: () => _showReassignManagerDialog(managerData),
+                    onPressed: () => _navigateReassignManager(managerData),
                   ),
                 ),
               );

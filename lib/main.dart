@@ -4,6 +4,7 @@ import 'splashpage.dart';
 import 'theme/app_theme.dart';
 import 'services/database_helper.dart';
 import 'services/auth_service.dart';
+import 'stores/branch_store.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,8 +19,11 @@ class FindMedDemoApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AuthService(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => BranchStore()),
+      ],
       child: MaterialApp(
         title: 'FindMed Demo',
         debugShowCheckedModeBanner: false,
