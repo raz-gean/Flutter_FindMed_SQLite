@@ -29,6 +29,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
   List<Map<String, dynamic>> _managersWithBranches = [];
   List<Map<String, dynamic>> _branches = [];
   List<Map<String, dynamic>> _companies = [];
+  List<Map<String, dynamic>> _unassignedBranches = [];
+  Set<int> _unassignedBranchIds = <int>{};
 
   // Pagination
   static const int pageSize = 10;
@@ -75,6 +77,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       );
       _unassignedManagers = await DatabaseHelper.instance
           .getUnassignedManagers();
+      _unassignedBranches = await DatabaseHelper.instance
+          .getUnassignedBranches();
+      _unassignedBranchIds = _unassignedBranches
+          .map((b) => (b['id'] as int))
+          .toSet();
 
       if (!mounted) return;
       setState(() {
@@ -648,6 +655,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       ),
                       const SizedBox(height: 12),
                       ...companyBranches.map((b) {
+                        final branchId = b['id'] as int;
+                        final isAssigned = !_unassignedBranchIds.contains(
+                          branchId,
+                        );
                         return Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           decoration: BoxDecoration(
@@ -676,6 +687,39 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color:
+                                        (isAssigned
+                                                ? Colors.green
+                                                : Colors.orange)
+                                            .withValues(alpha: 0.10),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color:
+                                          (isAssigned
+                                                  ? Colors.green
+                                                  : Colors.orange)
+                                              .withValues(alpha: 0.35),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    isAssigned
+                                        ? 'Manager Assigned'
+                                        : 'Unassigned',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: isAssigned
+                                          ? Colors.green.shade800
+                                          : Colors.orange.shade800,
+                                    ),
                                   ),
                                 ),
                               ],
